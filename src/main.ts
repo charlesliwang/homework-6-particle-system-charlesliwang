@@ -17,6 +17,9 @@ const controls = {
 let square: Square;
 let time: number = 0.0;
 
+let flag = false;
+let output : string[][] = [];
+
 function loadScene() {
   square = new Square();
   square.create();
@@ -67,8 +70,9 @@ function main() {
 
   // Initial call to load scene
   loadScene();
+  readTextFile(require('./geometry/win_frame.obj'), 0 ,0);
 
-  const camera = new Camera(vec3.fromValues(50, 50, 10), vec3.fromValues(50, 50, 0));
+  const camera = new Camera(vec3.fromValues(0, 0, 50), vec3.fromValues(0, 0, 0));
 
   const renderer = new OpenGLRenderer(canvas);
   renderer.setClearColor(0.2, 0.2, 0.2, 1);
@@ -110,4 +114,103 @@ function main() {
   tick();
 }
 
+
+
 main();
+
+
+function readTextFile(file: string, i: number, j : number)
+{
+  flag=false;
+    var rawFile = new XMLHttpRequest();
+    rawFile.open("GET", file, true);
+    var allText = "";
+    rawFile.onreadystatechange = function ()
+    {
+        if(rawFile.readyState === 4)
+        {
+            if(rawFile.status === 200 || rawFile.status == 0)
+            {
+                allText = rawFile.responseText;
+                setOutputText(allText, i, j);
+                alert(allText);
+            }
+        }
+    }
+    rawFile.send(null);
+    return allText;
+}
+
+function setOutputText(allText:string, i : number, j : number) {
+  flag = false;
+  if(output[i] == undefined) {
+    output[i] = [];
+  }
+  output[i][j]  = allText;
+}
+
+// https://dannywoodz.wordpress.com/2014/12/16/webgl-from-scratch-loading-a-mesh/
+
+function loadMeshData(string: string) {
+  if (string == undefined) {
+    console.log("string undefined");
+    return;
+  }
+  var lines = string.split("\n");
+  var positions : vec3[] = [];
+  var normals : vec3[] = [];
+  var vertices : number[] = [];
+ 
+  for ( var i = 0 ; i < lines.length ; i++ ) {
+    var parts = lines[i].trimRight().split(' ');
+    if ( parts.length > 0 ) {
+      switch(parts[0]) {
+        case 'v':  positions.push(
+          vec3.fromValues(
+            parseFloat(parts[1]),
+            parseFloat(parts[2]),
+            parseFloat(parts[3])
+          ));
+          break;
+        case 'vn':
+          normals.push(
+            vec3.fromValues(
+              parseFloat(parts[1]),
+              parseFloat(parts[2]),
+              parseFloat(parts[3])
+          ));
+          break;
+        case 'f': {
+          var f1 = parts[1].split('/');
+          var f2 = parts[2].split('/');
+          var f3 = parts[3].split('/');
+          Array.prototype.push.apply(
+            vertices, positions[parseInt(f1[0]) - 1]
+          );
+          Array.prototype.push.apply(
+            vertices, normals[parseInt(f1[2]) - 1]
+          );
+          Array.prototype.push.apply(
+            vertices, positions[parseInt(f2[0]) - 1]
+          );
+          Array.prototype.push.apply(
+            vertices, normals[parseInt(f2[2]) - 1]
+          );
+          Array.prototype.push.apply(
+            vertices, positions[parseInt(f3[0]) - 1]
+          );
+          Array.prototype.push.apply(
+            vertices, normals[parseInt(f3[2]) - 1]
+          );
+          break;
+        }
+      }
+    }
+  }
+  var vertexCount = vertices.length / 6;
+  return {
+    primitiveType: 'TRIANGLES',
+    vertices: vertices,
+    vertexCount: vertexCount
+  };
+}

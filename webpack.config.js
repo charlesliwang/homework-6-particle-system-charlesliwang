@@ -18,6 +18,14 @@ module.exports = {
         test: /\.glsl$/,
         loader: 'webpack-glsl-loader'
       },
+      {
+        test: /\.obj$/,
+        loader: 'file-loader',
+        options: {
+          name: '[name][sha512:hash:base64:7].[ext]',
+          outputPath: 'obj/',
+        },
+      },
     ]
   },
   resolve: {
