@@ -2,6 +2,7 @@ import {vec3, vec4, mat4} from 'gl-matrix';
 import * as Stats from 'stats-js';
 import * as DAT from 'dat-gui';
 import Square from './geometry/Square';
+import GroundPlane from './geometry/GroundPlane';
 import OpenGLRenderer from './rendering/gl/OpenGLRenderer';
 import Camera from './Camera';
 import {setGL} from './globals';
@@ -14,12 +15,14 @@ import ParticleSystem from './particlesystem';
 const controls = {
   tesselations: 5,
   'Load Scene': loadScene, // A function pointer, essentially
-  Mesh: 'Bunny',
+  Mesh: 'Head',
   explodeOnClick: false,
 };
 
 let square: Square;
+let groundPlane: GroundPlane;
 let time: number = 0.0;
+let objsLoaded = false;
 
 let camera : Camera;
 
@@ -32,6 +35,13 @@ function loadScene() {
   square = new Square();
   square.create();
 
+  groundPlane = new GroundPlane();
+  groundPlane.create();
+
+  let goff: Float32Array = new Float32Array([0,-1.0,0]);
+  let gcol: Float32Array = new Float32Array([1,0,0,1]);
+  groundPlane.setInstanceVBOs(goff, gcol);
+  groundPlane.setNumInstances(1); // 10x10 grid of "particles"
   particlesystem = new ParticleSystem(60);
   let arrays = particlesystem.updateParticles(1/60);
   let offsets: Float32Array = new Float32Array(arrays.offsets);
@@ -52,7 +62,7 @@ function main() {
   // Add controls to the gui
   const gui = new DAT.GUI();
 
-  gui.add(controls, 'Mesh',  [ 'Bunny', 'Teapot']);
+  gui.add(controls, 'Mesh',  [ 'Bunny', 'Teapot', 'Head']);
   gui.add(controls, 'explodeOnClick');
 
   // get canvas and webgl context
@@ -69,17 +79,23 @@ function main() {
   loadScene();
   readTextFile(require('./geometry/bunny2.obj'), 0 ,0);
   readTextFile(require('./geometry/teapot2.obj'), 0 ,1);
+  readTextFile(require('./geometry/head.obj'), 0 ,2);
 
-  camera = new Camera(vec3.fromValues(0, 0, 100), vec3.fromValues(0, 20, 0));
+  camera = new Camera(vec3.fromValues(2, 20, 100), vec3.fromValues(0, 20, 0));
 
   const renderer = new OpenGLRenderer(canvas);
-  renderer.setClearColor(0.2, 0.2, 0.2, 1);
+  renderer.setClearColor(0.05, 0.05, 0.05, 1);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.ONE, gl.ONE); // Additive blending
 
   const lambert = new ShaderProgram([
     new Shader(gl.VERTEX_SHADER, require('./shaders/particle-vert.glsl')),
     new Shader(gl.FRAGMENT_SHADER, require('./shaders/particle-frag.glsl')),
+  ]);
+
+  const gp = new ShaderProgram([
+    new Shader(gl.VERTEX_SHADER, require('./shaders/gp-vert.glsl')),
+    new Shader(gl.FRAGMENT_SHADER, require('./shaders/gp-frag.glsl')),
   ]);
 
   // This function will be called every frame
@@ -91,11 +107,14 @@ function main() {
       
       let bunny = loadMeshData(output[0][0]);
       let teapot = loadMeshData(output[0][1]);
-      if(bunny.vertexCount == 0 || teapot.vertexCount == 0) {
+      let head = loadMeshData(output[0][2]);
+      if(bunny.vertexCount == 0 || teapot.vertexCount == 0 || head.vertexCount == 0) {
         
       } else {
-        particlesystem.initFromOBJ(bunny.vertices, 10, 0);
-        particlesystem.initFromOBJ(teapot.vertices, 10, 1);
+        objsLoaded = true;
+        particlesystem.initFromOBJ(bunny.vertices, 15, 0);
+        particlesystem.initFromOBJ(teapot.vertices, 15, 1);
+        particlesystem.initFromOBJ(head.vertices, 20, 2);
         let arrays = particlesystem.updateParticles(1/60);
         let offsets: Float32Array = new Float32Array(arrays.offsets);
         let colors: Float32Array = new Float32Array(arrays.colors);
@@ -109,12 +128,16 @@ function main() {
     }
     else if(controls.Mesh == "Teapot") {
       particlesystem.target = 1;
+    } else if(controls.Mesh == "Head") {
+      particlesystem.target = 2;
     }
     
+    if(objsLoaded) {
     let arrays = particlesystem.updateParticles(1/60);
     let offsets: Float32Array = new Float32Array(arrays.offsets);
     let colors: Float32Array = new Float32Array(arrays.colors);
     square.setInstanceVBOs(offsets, colors);
+    }
 
     stats.begin();
     lambert.setTime(time++);
@@ -122,6 +145,9 @@ function main() {
     renderer.clear();
     renderer.render(camera, lambert, [
       square,
+    ]);
+    renderer.render(camera, gp, [
+      groundPlane,
     ]);
     stats.end();
 
